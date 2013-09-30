@@ -14,18 +14,22 @@ class LdapManager implements LdapManagerInterface
     private $params = array();
     private $ldapAttributes = array();
     private $ldapUsernameAttr;
+    private $options = array();
 
     public function __construct(LdapDriverInterface $driver, $userManager, array $params)
     {
         $this->driver = $driver;
         $this->userManager = $userManager;
         $this->params = $params;
+        $this->options = $params['driver'];
 
-        foreach ($this->params['attributes'] as $attr) {
+        foreach ($this->params['user']['attributes'] as $attr) {
             $this->ldapAttributes[] = $attr['ldap_attr'];
         }
 
         $this->ldapUsernameAttr = $this->ldapAttributes[0];
+        
+
     }
 
     /**
@@ -41,12 +45,21 @@ class LdapManager implements LdapManagerInterface
      */
     public function findUserBy(array $criteria)
     {
-        $filter  = $this->buildFilter($criteria);
-        $entries = $this->driver->search($this->params['baseDn'], $filter, $this->ldapAttributes);
-        if ($entries['count'] > 1) {
-            throw new \Exception('This search can only return a single user');
-        }
+        
+        foreach ($this->options as $option) {
 
+            $this->driver->setOptions($option);
+            
+            $filter  = $this->buildFilter($criteria, '&', $option['accountFilterFormat']);
+            $entries = $this->driver->search($option['baseDn'], $filter, $this->ldapAttributes);
+            if ($entries['count'] > 1) {
+                throw new \Exception('This search can only return a single user');
+            }
+
+            if ($entries['count'] == 1) {
+                break;
+            }
+        }
         if ($entries['count'] == 0) {
             return false;
         }
@@ -63,11 +76,11 @@ class LdapManager implements LdapManagerInterface
      * @param  string $condition
      * @return string
      */
-    private function buildFilter(array $criteria, $condition = '&')
+    private function buildFilter(array $criteria, $condition = '&', $filter)
     {
         $criteria = self::escapeValue($criteria);
         $filters = array();
-        $filters[] = $this->params['filter'];
+        $filters[] = $filter;
         foreach ($criteria as $key => $value) {
             $filters[] = sprintf('(%s=%s)', $key, $value);
         }
@@ -91,19 +104,31 @@ class LdapManager implements LdapManagerInterface
             $user->setEnabled(true);
         }
 
-        foreach ($this->params['attributes'] as $attr) {
-            $ldapValue = $entry[$attr['ldap_attr']];
-            $value = null;
 
-            if (!array_key_exists('count', $ldapValue) ||  $ldapValue['count'] == 1) {
-                $value = $ldapValue[0];
-            } else {
-                $value = array_slice($ldapValue, 1);
+
+        
+        try {
+            foreach ($this->params['user']['attributes'] as $attr) {
+                $ldapValue = $entry[$attr['ldap_attr']];
+                $value = null;
+
+                if (!array_key_exists('count', $ldapValue) ||  $ldapValue['count'] == 1) {
+                    if (isset($ldapValue[0])) {
+                        $value = $ldapValue[0];
+                    } else {
+                        break;
+                    }
+                } else {
+                    $value = array_slice($ldapValue, 1);
+                }
+
+
+                call_user_func(array($user, $attr['user_method']), $value);
             }
-
-            call_user_func(array($user, $attr['user_method']), $value);
+        } catch (\Exception $e) {
+   
         }
-
+        
         if ($user instanceof LdapUserInterface) {
             $user->setDn($entry['dn']);
         }
@@ -114,7 +139,15 @@ class LdapManager implements LdapManagerInterface
      */
     public function bind(UserInterface $user, $password)
     {
-        return $this->driver->bind($user, $password);
+        foreach ($this->options as $option) {
+            $this->driver->setOptions($option);
+            
+            if ($this->driver->bind($user, $password)) {
+                return true;
+            }
+        }
+        
+        return false;
     }
 
     /**

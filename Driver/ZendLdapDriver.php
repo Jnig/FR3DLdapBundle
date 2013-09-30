@@ -33,7 +33,10 @@ class ZendLdapDriver implements LdapDriverInterface
      */
     public function __construct(Ldap $driver, LoggerInterface $logger = null)
     {
+
         $this->driver = $driver;
+        
+
         $this->logger = $logger;
     }
 
@@ -113,5 +116,9 @@ class ZendLdapDriver implements LdapDriverInterface
         if ($this->logger) {
             $this->logger->debug($message);
         }
+    }
+    
+    public function setOptions (array $options) {
+        $this->driver->setOptions($options);
     }
 }

@@ -14,7 +14,7 @@
     <services>
 
         <service id="fr3d_ldap.ldap_driver.zend.driver" class="Zend\Ldap\Ldap" public="false">
-            <argument>%fr3d_ldap.ldap_driver.parameters%</argument>
+
         </service>
 
         <service id="fr3d_ldap.ldap_driver.zend" class="%fr3d_ldap.ldap_driver.zend.class%">

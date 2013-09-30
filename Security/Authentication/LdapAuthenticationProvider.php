@@ -47,16 +47,19 @@ class LdapAuthenticationProvider extends UserAuthenticationProvider
      */
     protected function retrieveUser($username, UsernamePasswordToken $token)
     {
+
         $user = $token->getUser();
         if ($user instanceof UserInterface) {
+
             return $user;
         }
 
         try {
             $user = $this->userProvider->loadUserByUsername($username);
-
+           
             return $user;
         } catch (UsernameNotFoundException $notFound) {
+
             throw $notFound;
         } catch (\Exception $repositoryProblem) {
             if (Kernel::MINOR_VERSION <= 1) {
